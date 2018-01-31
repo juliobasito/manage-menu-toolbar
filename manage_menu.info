@@ -1,0 +1,6 @@
+name = Manage menu in admin tab
+description = Put menu item in admin tab
+core = 7.x
+
+files[] = manage_menu.module
+files[] = manage_menu.install

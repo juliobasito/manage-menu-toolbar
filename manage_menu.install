@@ -1,0 +1,59 @@
+<?php
+/**
+ * Sets up the database schema for the new form data
+ * Implements hook_schema()
+ */
+function manage_menu_schema() {
+	$schema = array();
+
+	// Our table is an array with fields and properties
+	$schema['manage_menu_data'] = array(
+		'description' => t('A table for holding the manage_menu data!'),
+		'fields' => array(
+            'mmid' => array(
+                'description' => 'The primary identifier for a node.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'permissions_id' => array(
+                'description' => t('Permissions user id'),
+                'type' => 'varchar',
+                'length' => 128,
+            ),
+			'permissions' => array(
+				'description' => t('Permissions user string'),
+				'type' => 'varchar',
+                'length' => 128,
+			),
+			'name' => array(
+				'description' => t('Link name'),
+				'type' => 'varchar',
+                'length' => 128,
+			),
+			'link_clickable' => array(
+				'description' => t('If link is clickable'),
+				'type' => 'varchar',
+                'length' => 128,
+			),
+		),
+        'primary key' => array(
+            'mmid',
+        ),
+	);
+	return $schema;
+}
+
+/**
+ * Implements hook_install()
+ */
+function manage_menu_install() {
+	// Nothing to put in here for this module
+}
+
+/**
+ * Implements hook_uninstall()
+ */
+function manage_menu_uninstall() {
+	db_drop_table('manage_menu_data');
+}

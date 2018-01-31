@@ -1,0 +1,232 @@
+<?php
+
+function manage_menu_menu() {
+
+    $list_menu_configurations = _get_manage_menu_form_configurations();
+
+    $items['admin/config/list_menu'] = array(
+        'title' => t('List of menu metrics'),
+        'description' => t('List of menu metrics'),
+        'page callback' => '_list_menu_configured_admin',
+        'file' => 'manage_menu.module',
+        'file path' => drupal_get_path('module', 'manage_menu'),
+        'access callback' => TRUE,
+        'weight' => 1
+    );
+
+    $items['admin/config/list_menu/add'] = array(
+        'title' => t('Add a rule for menu'),
+        'description' => t('Add a rule for menu'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('manage_menu_form'),
+        'access callback' => TRUE,
+        'weight' => 1
+    );
+
+
+    foreach ($list_menu_configurations['menu_configuration'] as $list_menu_configuration_key => $list_menu_configuration_value) {
+
+        $items['admin/config/list_menu/' . $list_menu_configuration_value['mmid']] = array(
+            'title' => '',
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('manage_menu_form', 'menu_configuration' => $list_menu_configuration_value),
+            'access callback' => TRUE, // Give access as per your need.
+            'type' => MENU_NORMAL_ITEM,
+        );
+    }
+
+    $menu = menu_load_links('menu-test-menu');
+
+    $items['admin/perso-menu'] = array(
+        'title' => 'Perso menu',
+        'description' => 'Mon perso menu',
+        'page callback' => 'system_admin_menu_block_page',
+        'access arguments' => array('administer site configuration'),
+        'file' => 'system.admin.inc',
+        'file path' => drupal_get_path('module', 'system'),
+        'type' => MENU_NORMAL_ITEM,
+    );
+
+    $link_array = [];
+
+    foreach($menu as $link_menu) {
+        $link_array[$link_menu['mlid']] = [
+            'link_path' => $link_menu['link_path'],
+            'link_title' => $link_menu['link_title'],
+            'plid' => $link_menu['plid']
+        ];
+    }
+
+    foreach($link_array as $key => $link_value) {
+
+        if ($link_value['plid'] == 0) {
+            $items['admin/perso-menu/' . str_replace(' ', '_', $link_value['link_title'])] = array(
+                'title' => $link_value['link_title'],
+                'description' => $link_value['link_title'],
+                'page callback' => 'drupal_goto',
+                'page arguments' => [$link_value['link_path']],
+                'access arguments' => array('administer site configuration'),
+                'type' => MENU_NORMAL_ITEM,
+            );
+        }
+
+    }
+
+    foreach($link_array as $key => $link_value) {
+
+        if ($link_value['plid'] != 0) {
+            $items['admin/perso-menu/' . str_replace(' ', '_', $link_array[$link_value['plid']]['link_title']) . '/' . str_replace(' ', '_', $link_value['link_title'])] = array(
+                'title' => $link_value['link_title'],
+                'description' => $link_value['link_title'],
+                'page callback' => 'drupal_goto',
+                'page arguments' => [$link_value['link_path']],
+                'access arguments' => array('administer site configuration'),
+                'type' => MENU_NORMAL_ITEM,
+            );
+
+            $items['admin/perso-menu/' . str_replace(' ', '_', $link_array[$link_value['plid']]['link_title'])]['page callback'] = 'system_admin_menu_block_page';
+
+            $items['admin/perso-menu/' . str_replace(' ', '_', $link_array[$link_value['plid']]['link_title'])]['file'] = 'system.admin.inc';
+
+            $items['admin/perso-menu/' . str_replace(' ', '_', $link_array[$link_value['plid']]['link_title'])]['file path'] = drupal_get_path('module', 'system');
+        }
+    }
+
+    return $items;
+}
+
+function _get_manage_menu_form_configurations($use_id = FALSE) {
+
+    $options_array = [];
+
+    if ($use_id) {
+        $arg_array = arg();
+
+        $id_menu_configuration = $arg_array[sizeof($arg_array) - 1];
+
+        $result = db_select('manage_menu_data', 'c')
+            ->fields('c')
+            ->condition('mmid', $id_menu_configuration,'=')
+            ->execute()
+            ->fetchAssoc();
+    }
+    else {
+
+        $result = db_select('manage_menu_data', 'c')
+            ->fields('c')
+            ->execute()
+            ->fetchAll();
+    }
+
+    $options_array['menu_configuration'] = json_decode(json_encode($result), true);
+
+    return $options_array;
+}
+
+function manage_menu_theme($existing, $type, $theme, $path) {
+
+    $menu_configurations = _get_manage_menu_form_configurations();
+
+    return array (
+        'list_menu_configured_admin' => array(
+            'template' => 'templates/admin/list_configuration', // your template file called custompage.tpl.php
+            'arguments' => array(
+                'menu_configuration' => $menu_configurations
+            ),
+        ),
+    );
+}
+
+function _list_menu_configured_admin() {
+
+    $menu_configurations = _get_manage_menu_form_configurations();
+
+    return theme('list_menu_configured_admin', $menu_configurations);
+}
+
+/**
+ *  Admin form for manage_menu module.
+ */
+function manage_menu_form($form, &$form_state)
+{
+    $user_roles = user_roles();
+
+    if (current_path() != 'admin/config/add') {
+        $default_data = _get_manage_menu_form_configurations(TRUE);
+    }
+
+    // Provide a text field.
+    $form['permissions_id'] = array(
+        '#title' => t('Users can access to admin menu'),
+        '#type' => 'checkboxes',
+        '#options' => $user_roles,
+        '#default_value' => isset($default_data['menu_configuration']['permissions_id']) ? json_decode($default_data['menu_configuration']['permissions_id']) : [],
+    );
+
+    // Provide a text field.
+    $form['name'] = array(
+        '#title' => t('The name of the root menu on administration page'),
+        '#type' => 'textfield',
+        '#required' => TRUE,
+        '#default_value' => isset($default_data['menu_configuration']['name']) ? $default_data['menu_configuration']['name'] : '',
+    );
+
+    // Provide a text field.
+    $form['link_clickable'] = array(
+        '#title' => t('Make link clickable for parent link'),
+        '#type' => 'checkbox',
+        '#default_value' => isset($default_data['menu_configuration']['link_clickable']) ? $default_data['menu_configuration']['link_clickable'] : 0,
+    );
+
+    // Provide a text field.
+    $form['id_menu'] = array(
+        '#type' => 'hidden',
+        '#value' => $default_data['menu_configuration']['mmid'] ? $default_data['menu_configuration']['mmid'] : '',
+    );
+
+    // Provide a submit button.
+    $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Confirm configuration'),
+    );
+
+    return $form;
+}
+
+function manage_menu_form_submit($form, &$form_state) {
+    // Here is where you use the insert the data into your table
+
+    $user_roles = user_roles();
+
+    $permission_key_array = [];
+    $permission_value_array = [];
+    foreach ($form_state['values']['permissions_id'] as $permission_key => $permission_value) {
+        if ($permission_value) {
+            $permission_key_array[] = $permission_key;
+            $permission_value_array[] = $user_roles[$permission_key];
+        }
+    }
+
+    if (current_path() == 'admin/config/list_menu/add') {
+
+        db_insert('manage_menu_data')
+            ->fields(array(
+                'permissions_id' => json_encode($permission_key_array),
+                'name' => $form_state['values']['name'],
+                'link_clickable' => $form_state['values']['link_clickable'],
+                'permissions' => json_encode($permission_value_array),
+            ))
+            ->execute();
+    } else {
+        db_update('manage_menu_data') // Table name no longer needs {}
+        ->fields(array(
+            'permissions_id' => json_encode($permission_key_array),
+            'name' => $form_state['values']['name'],
+            'link_clickable' => $form_state['values']['link_clickable'],
+            'permissions' => json_encode($permission_value_array),
+
+        ))
+            ->condition('mmid', $form_state['values']['mmid'], '=')
+            ->execute();
+    }
+}
